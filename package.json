@@ -1,0 +1,39 @@
+{
+  "name": "opencode-lemo-opuscar",
+  "version": "0.1.0",
+  "description": "Lemo-Opuscar film styles for OpenCode: a skill, a film-director agent, a /styles command and four custom tools.",
+  "type": "module",
+  "license": "MIT",
+  "author": "R4C3R",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/instax-dutta/opencode-lemo-opuscar.git"
+  },
+  "keywords": [
+    "opencode",
+    "opencode-plugin",
+    "lemo-opuscar",
+    "film",
+    "animation",
+    "code-rendered-video"
+  ],
+  "files": [
+    "src",
+    "skills",
+    "agent",
+    "command",
+    "docs",
+    "install.sh",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "test": "node test/run.mjs"
+  },
+  "dependencies": {
+    "@opencode-ai/plugin": "^1.18.35"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
