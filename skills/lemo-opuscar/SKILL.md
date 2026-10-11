@@ -34,13 +34,17 @@ This file ships inside a plugin repo, so the script path is not fixed. Resolve
 it once, at the start:
 
 ```bash
-# project-local install (this repo cloned into the project)
-[ -f ./.opencode/plugin/lemo-opuscar/scripts/setup.sh ] && \
-  LIB_SETUP=./.opencode/plugin/lemo-opuscar/scripts/setup.sh
+# global install (default)
+[ -f "${XDG_CONFIG_HOME:-$HOME/.config}/opencode/skills/lemo-opuscar/scripts/setup.sh" ] && \
+  LIB_SETUP="${XDG_CONFIG_HOME:-$HOME/.config}/opencode/skills/lemo-opuscar/scripts/setup.sh"
 
-# or the plugin repo itself, wherever it was cloned
-[ -f "$HOME/opencode-lemo-opuscar/scripts/setup.sh ] ] && \
-  LIB_SETUP="$HOME/opencode-lemo-opuscar/scripts/setup.sh"
+# project-local install
+[ -f ./.opencode/skills/lemo-opuscar/scripts/setup.sh ] && \
+  LIB_SETUP=./.opencode/skills/lemo-opuscar/scripts/setup.sh
+
+# standalone clone of the adapter repo
+[ -f "$HOME/opencode-lemo-opuscar/skills/lemo-opuscar/scripts/setup.sh" ] && \
+  LIB_SETUP="$HOME/opencode-lemo-opuscar/skills/lemo-opuscar/scripts/setup.sh"
 ```
 
 Whichever path exists. Then substitute it for `$LIB_SETUP` in every command

@@ -38,7 +38,7 @@ async function test(name, fn) {
   }
 }
 
-const { LemoOpuscar } = await import("../src/index.js")
+const { LemoOpuscar, setupCandidates } = await import("../src/index.js")
 const plugin = await LemoOpuscar({ $, client: { app: { log: async () => {} } }, directory: process.cwd() })
 const t = plugin.tool
 
@@ -98,8 +98,78 @@ await test("lemo_styles filters by category when a library exists", async () => 
 await test("lemo_styles reports no match for a bogus category", async () => {
   if (!HAS_LIB) return console.log("      (skipped: no library)")
   const out = await t.lemo_styles.execute({ category: "Nonexistent Style" })
-  assert.match(out, /No category matched|style-list:start/)
+  assert.match(out, /No style matched/)
+  assert.match(out, /Known categories/, "a bogus category should list the valid ones")
 })
+
+// --- setup.sh resolution -------------------------------------------------
+// install.sh writes the skill to <config>/skills/lemo-opuscar/scripts/setup.sh
+// (and ./.opencode/skills/... for a project install). If the plugin cannot find
+// that file, lemo_setup silently degrades into an error string and no tool that
+// depends on it can work. These tests run against the real filesystem.
+
+/** Candidate roots, mirroring what install.sh actually writes. */
+const CONFIG_HOME = process.env.XDG_CONFIG_HOME || path.join(os.homedir(), ".config")
+const INSTALLED_SETUP_PATHS = [
+  path.join(CONFIG_HOME, "opencode/skills/lemo-opuscar/scripts/setup.sh"),
+  path.join(process.cwd(), ".opencode/skills/lemo-opuscar/scripts/setup.sh"),
+  path.join(os.homedir(), "opencode-lemo-opuscar/skills/lemo-opuscar/scripts/setup.sh"),
+]
+
+await test("plugin's setup.sh candidates match where install.sh writes", () => {
+  // A path the installer never creates must not be the only one we look for.
+  const bogus = ["./.opencode/plugin/lemo-opuscar/skills/lemo-opuscar/scripts/setup.sh"]
+  for (const b of bogus) {
+    assert.ok(
+      !setupCandidates().some((c) => c.includes(b)),
+      `plugin still resolves setup.sh via a path install.sh never writes: ${b}`
+    )
+  }
+})
+
+await test("lemo_setup finds setup.sh on an installed system", async () => {
+  if (!INSTALLED_SETUP_PATHS.some((p) => fs.existsSync(p)))
+    return console.log("      (skipped: adapter not installed)")
+  const out = await t.lemo_setup.execute({ action: "setup" })
+  assert.doesNotMatch(
+    String(out),
+    /setup\.sh not found/,
+    "lemo_setup could not find setup.sh despite the adapter being installed"
+  )
+})
+
+// `setup.sh deps` takes only voice/music as arguments; the core tier is implicit.
+// Passing "core" makes upstream print a usage error and install nothing.
+//
+// Assert on the generated command string, not on its output: a broken setup.sh
+// path also produces output that merely lacks the usage message, so checking
+// the output would pass for the wrong reason.
+await test("lemo_setup deps core sends a bare 'deps', not 'deps core'", async () => {
+  const seen = await captureSetupCommand({ action: "deps", tier: "core" })
+  assert.match(seen, /sh "\$p" deps( |;|$)/)
+  assert.doesNotMatch(seen, /deps core/, "upstream rejects 'core' as an argument")
+})
+
+await test("lemo_setup deps still forwards voice and music tiers", async () => {
+  // Never actually pull the (large) voice models: inspect the command only.
+  const seen = await captureSetupCommand({ action: "deps", tier: "voice" })
+  assert.match(seen, /sh "\$p" deps voice/)
+})
+
+/**
+ * Run a lemo_setup action against a stubbed shell and return the shell command
+ * the plugin built, so tests can assert on the command without running it.
+ */
+async function captureSetupCommand(args) {
+  let cmd = null
+  const stub = (strings, ...vals) => {
+    cmd = strings.reduce((a, s, i) => a + s + (vals[i] ?? ""), "")
+    return { text: async () => "" }
+  }
+  const p = await LemoOpuscar({ $: stub, client: { app: { log: async () => {} } }, directory: process.cwd() })
+  await p.tool.lemo_setup.execute(args)
+  return cmd
+}
 
 console.log(`\n${passed} passed, ${failed} failed\n`)
 process.exit(failed === 0 ? 0 : 1)

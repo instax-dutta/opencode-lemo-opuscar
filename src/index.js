@@ -23,13 +23,19 @@ function resolveLib(env) {
 }
 
 /**
- * Locate setup.sh the same way SKILL.md tells the model to: plugin installed
- * either project-local or standalone. Falls back to the standalone clone.
+ * Candidate locations for the upstream setup.sh, in priority order.
+ * These mirror where install.sh actually writes the files:
+ *   global  -> ${XDG_CONFIG_HOME:-$HOME/.config}/opencode/skills/lemo-opuscar/
+ *   project -> ./.opencode/skills/lemo-opuscar/
+ * plus the standalone clone of this repo at ~/opencode-lemo-opuscar.
+ *
+ * Exported so the test suite can assert these stay in sync with install.sh.
  */
-function setupScript() {
+export function setupCandidates() {
   return [
+    "${XDG_CONFIG_HOME:-$HOME/.config}/opencode/skills/lemo-opuscar/scripts/setup.sh",
+    "./.opencode/skills/lemo-opuscar/scripts/setup.sh",
     "$HOME/opencode-lemo-opuscar/skills/lemo-opuscar/scripts/setup.sh",
-    "./.opencode/plugin/lemo-opuscar/skills/lemo-opuscar/scripts/setup.sh",
   ]
 }
 
@@ -68,17 +74,18 @@ export const LemoOpuscar = async ({ $, client, directory }) => {
   /**
    * Run setup.sh from whichever install location exists. A plain shell snippet
    * rather than a tagged template, because the path must be chosen at runtime
-   * by testing which file exists. if/elif rather than `&& break`, because
-   * `break` outside a loop is not portable across /bin/sh implementations.
+   * by testing which file exists. The candidates are walked in a shell `for`
+   * loop so adding one stays a one-line change in setupCandidates().
    */
   const runSetup = async (args = "") => {
-    const [standalone, projectLocal] = setupScript()
+    const [global, projectLocal, standalone] = setupCandidates()
     const cmd =
-      `if [ -f ${standalone} ]; then p=${standalone}; ` +
-      `elif [ -f ${projectLocal} ]; then p=${projectLocal}; ` +
-      `else p=; fi; ` +
+      `p=; ` +
+      `for c in "${global}" "${projectLocal}" "${standalone}"; do ` +
+      `[ -f "$c" ] && { p="$c"; break; }; ` +
+      `done; ` +
       `if [ -n "$p" ]; then sh "$p" ${args}; ` +
-      `else echo "ERROR: setup.sh not found. Install this plugin, or clone the library manually."; fi`
+      `else echo "ERROR: setup.sh not found. Re-run install.sh, or clone the library manually."; fi`
     return await run(cmd)
   }
 
@@ -107,8 +114,10 @@ export const LemoOpuscar = async ({ $, client, directory }) => {
             return await runSetup()
           }
           if (args.action === "deps") {
-            const tier = args.tier ?? "core"
-            return await runSetup(`deps ${tier}`)
+            // upstream `setup.sh deps` takes only voice/music as optional args;
+            // the core tier is implicit, and passing "core" is a usage error.
+            const tiers = [args.tier ?? "core"].filter((t) => t !== "core")
+            return await runSetup(`deps${tiers.length ? " " + tiers.join(" ") : ""}`)
           }
           if (args.action === "demo") {
             if (!args.slug) return "demo needs a slug. See styles/README.md for the list."
@@ -138,13 +147,18 @@ export const LemoOpuscar = async ({ $, client, directory }) => {
           if (!args.category) return out
 
           const needle = args.category.trim().toLowerCase()
-          const lines = out.split("\n")
-          const start = lines.findIndex((l) => l.includes("(") && l.includes(":"))
-          if (start === -1) return out
-          const matches = lines
-            .slice(start + 1, start + 10)
-            .filter((l) => l.toLowerCase().includes(needle))
-          return matches.length ? matches.join("\n") : `No category matched "${args.category}".`
+          const byIndex = /^\d+$/.test(needle) ? CATEGORIES[Number(needle)] : null
+          const want = byIndex ? byIndex[0].toLowerCase() : needle
+          // The style-list block is one bullet per category, each listing its
+          // styles. Match on those bullets so a category name or its Chinese
+          // name selects exactly one line.
+          const matches = out
+            .split("\n")
+            .filter((l) => l.trim().startsWith("-"))
+            .filter((l) => l.toLowerCase().includes(want))
+          return matches.length
+            ? matches.join("\n")
+            : `No style matched "${args.category}".\n\nKnown categories: ${CATEGORIES.map((c, i) => `${i}: ${c[0]} (${c[1]})`).join(", ")}`
         },
       }),
 

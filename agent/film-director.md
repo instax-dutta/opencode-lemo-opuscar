@@ -24,8 +24,9 @@ Get it once, at the start of a session where the user has asked for a film:
 
 ```bash
 # resolve the setup script (plugin installed either way)
-for p in ./.opencode/plugin/lemo-opuscar/scripts/setup.sh \
-         "$HOME/opencode-lemo-opuscar/scripts/setup.sh"; do
+for p in "${XDG_CONFIG_HOME:-$HOME/.config}/opencode/skills/lemo-opuscar/scripts/setup.sh" \
+         "./.opencode/skills/lemo-opuscar/scripts/setup.sh" \
+         "$HOME/opencode-lemo-opuscar/skills/lemo-opuscar/scripts/setup.sh"; do
   [ -f "$p" ] && { LIB_SETUP="$p"; break; }
 done
 sh "$LIB_SETUP"          # clones or updates; prints LIB=<path>

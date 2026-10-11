@@ -13,12 +13,13 @@ fit it and say briefly why each one fits.
 Get the current list from the library so it is never stale:
 
 ```bash
-for p in ./.opencode/plugin/lemo-opuscar/scripts/setup.sh \
-         "$HOME/opencode-lemo-opuscar/scripts/setup.sh"; do
+for p in "${XDG_CONFIG_HOME:-$HOME/.config}/opencode/skills/lemo-opuscar/scripts/setup.sh" \
+         "./.opencode/skills/lemo-opuscar/scripts/setup.sh" \
+         "$HOME/opencode-lemo-opuscar/skills/lemo-opuscar/scripts/setup.sh"; do
   [ -f "$p" ] && { LIB_SETUP="$p"; break; }
 done
-sh "$LIB_SETUP"
-LIB=${LIB:-$(ls -d ~/lemo-opuscar)}
+# setup.sh prints LIB=<path> on its last line; capture it in the same run
+LIB=$(sh "$LIB_SETUP" | tee /dev/stderr | sed -n 's/^LIB=//p')
 sed -n '/style-list:start/,/style-list:end/p' "$LIB/AGENTS.md"
 ```
 
